@@ -1,0 +1,204 @@
+---
+title: "Project 1: History of Philosophy"
+author: "Kieu-Giang Nguyen"
+output: html_notebook
+---
+
+```{r, message=FALSE, warning=FALSE}
+library(beeswarm)
+library(data.table)
+library(dichromat)
+library(dplyr)
+library(factoextra)
+library(fmsb)
+library(ggplot2)
+library(gridExtra)
+library(qdap)
+library(RANN)
+library(RColorBrewer)
+library(readtext)
+library(rvest)
+library(scales)
+library(sentimentr)
+library(stopwords)
+library(stringr)
+library(syuzhet)
+library(textreuse)
+library(tibble)
+library(tidytext)
+library(tidyverse)
+library(tm)
+library(topicmodels)
+library(wesanderson)
+library(wordcloud)
+
+source("../lib/plot_stacked.R")
+source("../lib/speech_funcs.R")
+source("../lib/helper_funcs.R")
+```
+
+```{r, eval=FALSE, message=FALSE, warning=FALSE}
+# df <- read.csv("../data/philosophy_data.csv")
+
+# Read data using data.table to decrease runtime
+df <- data.table::fread("../output/philosophy_data_table.csv")
+
+df <- df %>%
+  group_by(school) %>%
+  mutate(mode_date = find_mode(original_publication_date)) %>%
+  ungroup() %>%
+  mutate(school = ifelse(school == "german_idealism", "German Idealism", str_to_title(school)),
+         school_ordered = reorder(factor(school), mode_date, mean, order = TRUE))
+
+palette <- get_palette(length(unique(df$school)))
+```
+
+# Overview
+
+```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=6}
+par(mfrow = c(4, 4))
+
+i <- 0
+for(s in levels(df$school_ordered)) {
+  docs <- Corpus(VectorSource(df[df$school == s, ]$sentence_str)) %>%
+    tm_map(tolower) %>%
+    tm_map(removePunctuation) %>%
+    tm_map(removeNumbers) %>%
+    tm_map(removeWords, stopwords("english")) %>%
+    tm_map(stripWhitespace)
+  
+  tdm <- TermDocumentMatrix(docs)
+  tdm_tidy <- tidy(tdm)
+  tdm_overall <- summarise(group_by(tdm_tidy, term), sum(count))
+  
+  i <- i + 1
+  plt_title <- s
+  wordcloud(tdm_overall$term, tdm_overall$`sum(count)`,
+            scale = c(5, 0.5),
+            max.words = 200,
+            min.freq = 1,
+            random.order = FALSE,
+            rot.per = 0.3,
+            random.color = FALSE,
+            colors = palette[i])
+  mtext(plt_title, side = 3)
+}
+```
+
+```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=6}
+df %>%
+  unnest_tokens(bigram, sentence_str, token = "ngrams", n = 2) %>%
+  separate(bigram, c("word1", "word2"), sep = " ") %>%
+  filter(!word1 %in% stopwords::stopwords(source = "snowball")) %>%
+  filter(!word2 %in% stopwords::stopwords(source = "snowball")) %>%
+  filter(!is.na(word1)) %>%
+  filter(!is.na(word2)) %>%
+  unite(bigram, word1, word2, sep = " ") %>%
+  group_by(school_ordered, bigram) %>%
+  summarize(n_bigram = n()) %>%
+  slice_max(n_bigram, n = 10) %>%
+  mutate(bigram = reorder_within(bigram, n_bigram, school_ordered)) %>%
+  ggplot(aes(x = bigram, y = n_bigram, fill = school_ordered)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  facet_wrap(~school_ordered, scales = "free") +
+  coord_flip() +
+  scale_x_reordered() +
+  scale_fill_manual(values = get_palette(length(unique(df$school)))) +
+  labs(title = "Top 10 Bigrams by School", x = element_blank(), y = "Count") +
+  theme_classic()
+```
+
+# Philosophy speech
+
+```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=6}
+df %>%
+  ggplot(aes(x = sentence_length, fill = school_ordered)) +
+  geom_histogram(binwidth = 2, size = 0.25, show.legend = FALSE) +
+  xlim(0, 500) +
+  facet_grid(rows = vars(school_ordered)) +
+  scale_fill_manual(values = palette) +
+  labs(title = "Sentence Length by School", x = "Word count", y = "Sentence count") +
+  theme_classic()
+```
+
+```{r, message=FALSE, warning=FALSE, fig.width=9, fig.height=3}
+trend_plt <- df %>%
+  group_by(original_publication_date) %>%
+  summarize(avg_sentence_length = round(mean(sentence_length), 0)) %>%
+  ggplot(aes(x = original_publication_date, y = avg_sentence_length)) +
+  geom_line(stat = "identity", show.legend = FALSE) +
+  guides(x = guide_axis(angle = 45)) +
+  scale_fill_manual(values = palette) +
+  labs(title = "Average Sentence Length over Time", x = "Year", y = "Word count") +
+  theme_classic()
+
+bar_plt <- df %>%
+  group_by(school_ordered) %>%
+  summarize(avg_sentence_length = round(mean(sentence_length), 0)) %>%
+  ggplot(aes(x = school_ordered, y = avg_sentence_length, fill = school_ordered)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  guides(x = guide_axis(angle = 45)) +
+  scale_fill_manual(values = palette) +
+  labs(title = "Average Sentence Length by School", x = "School", y = "Word count") +
+  theme_classic()
+
+grid.arrange(trend_plt, bar_plt, nrow = 1)
+```
+
+```{r, message=FALSE, warning=FALSE, fig.width=9, fig.height=3}
+df_distinct_word <- df %>%
+  unnest_tokens(word, sentence_str) %>%
+  filter(!(word %in% stopwords::stopwords(source = "snowball")))
+
+trend_plt <- df_distinct_word %>%
+  group_by(original_publication_date) %>%
+  summarize(ndistinct_word = length(unique(word))) %>%
+  ggplot(aes(x = original_publication_date, y = ndistinct_word)) +
+  geom_line(stat = "identity", show.legend = FALSE) +
+  guides(x = guide_axis(angle = 45)) +
+  scale_fill_manual(values = palette) +
+  labs(title = "Number of Distinct Words over Time", x = "Year", y = "Word count") +
+  theme_classic()
+
+bar_plt <- df_distinct_word %>%
+  group_by(school_ordered) %>%
+  summarize(ndistinct_word = length(unique(word))) %>%
+  ggplot(aes(x = school_ordered, y = ndistinct_word, fill = school_ordered)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  guides(x = guide_axis(angle = 45)) +
+  scale_fill_manual(values = palette) +
+  labs(title = "Number of Distinct Words by School", x = "School", y = "Word count") +
+  theme_classic()
+
+grid.arrange(trend_plt, bar_plt, nrow = 1)
+```
+
+# Sentiment analysis
+
+```{r, message=FALSE, warning=FALSE}
+emotions <- data.table::fread("../output/emotions.csv")
+df_emotions <- cbind(df, emotions)
+```
+
+```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=6}
+par(mfrow = c(4, 4))
+
+i <- 0
+for(s in levels(df$school_ordered)) {
+  emotions_by_school <- df_emotions %>%
+    mutate(school = ifelse(school == "german_idealism", "German Idealism", str_to_title(school))) %>%
+    filter(school == s) %>%
+    dplyr::select(anger, anticipation, disgust, fear, joy, sadness, surprise, trust) %>%
+    bind_rows(summarise_all(., ~if(is.numeric(.)) sum(.) else "Total")) %>%
+    slice_tail(n = 1) %>%
+    as.data.frame()
+
+  emotions_by_school <- rbind(rep(max(emotions_by_school), 8), rep(min(emotions_by_school), 8), emotions_by_school)
+  
+  i <- i + 1
+  plt_title <- s
+  radarchart(emotions_by_school, title = plt_title,
+           pcol = palette[i], pfcol = alpha(palette[i], 0.3), plwd = 2,
+           cglcol = "grey", cglty = 1, axislabcol = "grey", caxislabels = seq(0,20,5))
+}
+```
