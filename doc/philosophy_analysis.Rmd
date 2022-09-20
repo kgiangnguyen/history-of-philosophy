@@ -14,6 +14,8 @@ library(fmsb)
 library(ggplot2)
 library(gridExtra)
 library(qdap)
+library(quanteda)
+library(quanteda.textstats)
 library(RANN)
 library(RColorBrewer)
 library(readtext)
@@ -99,13 +101,13 @@ df %>%
   slice_max(n_bigram, n = 10) %>%
   mutate(bigram = reorder_within(bigram, n_bigram, school_ordered)) %>%
   ggplot(aes(x = bigram, y = n_bigram, fill = school_ordered)) +
-  geom_bar(stat = "identity", show.legend = FALSE) +
-  facet_wrap(~school_ordered, scales = "free") +
-  coord_flip() +
-  scale_x_reordered() +
-  scale_fill_manual(values = get_palette(length(unique(df$school)))) +
-  labs(title = "Top 10 Bigrams by School", x = element_blank(), y = "Count") +
-  theme_classic()
+    geom_bar(stat = "identity", show.legend = FALSE) +
+    facet_wrap(~school_ordered, scales = "free") +
+    coord_flip() +
+    scale_x_reordered() +
+    scale_fill_manual(values = get_palette(length(unique(df$school)))) +
+    labs(title = "Top 10 Bigrams by School", x = element_blank(), y = "Count") +
+    theme_classic()
 ```
 
 # Philosophy speech
@@ -113,64 +115,52 @@ df %>%
 ```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=6}
 df %>%
   ggplot(aes(x = sentence_length, fill = school_ordered)) +
-  geom_histogram(binwidth = 2, size = 0.25, show.legend = FALSE) +
-  xlim(0, 500) +
-  facet_grid(rows = vars(school_ordered)) +
-  scale_fill_manual(values = palette) +
-  labs(title = "Sentence Length by School", x = "Word count", y = "Sentence count") +
-  theme_classic()
+    geom_histogram(binwidth = 2, size = 0.25, show.legend = FALSE) +
+    xlim(0, 500) +
+    facet_grid(rows = vars(school_ordered)) +
+    scale_fill_manual(values = palette) +
+    labs(title = "Sentence Length by School", x = "Word count", y = "Sentence count") +
+    theme_classic()
 ```
 
-```{r, message=FALSE, warning=FALSE, fig.width=9, fig.height=3}
-trend_plt <- df %>%
+```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=3}
+df_avg_length <- df %>%
   group_by(original_publication_date) %>%
-  summarize(avg_sentence_length = round(mean(sentence_length), 0)) %>%
-  ggplot(aes(x = original_publication_date, y = avg_sentence_length)) +
-  geom_line(stat = "identity", show.legend = FALSE) +
-  guides(x = guide_axis(angle = 45)) +
-  scale_fill_manual(values = palette) +
-  labs(title = "Average Sentence Length over Time", x = "Year", y = "Word count") +
-  theme_classic()
-
-bar_plt <- df %>%
+  mutate(avg_length_time = round(mean(sentence_length), 0)) %>%
+  ungroup() %>%
   group_by(school_ordered) %>%
-  summarize(avg_sentence_length = round(mean(sentence_length), 0)) %>%
-  ggplot(aes(x = school_ordered, y = avg_sentence_length, fill = school_ordered)) +
-  geom_bar(stat = "identity", show.legend = FALSE) +
-  guides(x = guide_axis(angle = 45)) +
-  scale_fill_manual(values = palette) +
-  labs(title = "Average Sentence Length by School", x = "School", y = "Word count") +
-  theme_classic()
+  mutate(avg_length_school = round(mean(sentence_length), 0)) %>%
+  ungroup() %>%
+  distinct(original_publication_date, school_ordered, mode_date, avg_length_time, avg_length_school)
 
-grid.arrange(trend_plt, bar_plt, nrow = 1)
+ggplot() +
+  geom_line(data = df_avg_length, aes(x = original_publication_date, y = avg_length_time), stat = "identity") +
+  geom_bar(data = distinct(df_avg_length, school_ordered, mode_date, avg_length_school), aes(x = mode_date, y = avg_length_school, fill = school_ordered), stat = "identity", width = 5) +
+  scale_fill_manual(values = palette) +
+  labs(title = "Average Sentence Length", x = "Year", y = "Word count", fill = "School") +
+  theme_classic() +
+  theme(legend.position = "bottom", legend.direction = "horizontal")
 ```
 
-```{r, message=FALSE, warning=FALSE, fig.width=9, fig.height=3}
+```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=3}
 df_distinct_word <- df %>%
   unnest_tokens(word, sentence_str) %>%
-  filter(!(word %in% stopwords::stopwords(source = "snowball")))
-
-trend_plt <- df_distinct_word %>%
+  filter(!(word %in% stopwords::stopwords(source = "snowball"))) %>%
   group_by(original_publication_date) %>%
-  summarize(ndistinct_word = length(unique(word))) %>%
-  ggplot(aes(x = original_publication_date, y = ndistinct_word)) +
-  geom_line(stat = "identity", show.legend = FALSE) +
-  guides(x = guide_axis(angle = 45)) +
-  scale_fill_manual(values = palette) +
-  labs(title = "Number of Distinct Words over Time", x = "Year", y = "Word count") +
-  theme_classic()
-
-bar_plt <- df_distinct_word %>%
+  mutate(ndistinct_word_time = length(unique(word))) %>%
+  ungroup() %>%
   group_by(school_ordered) %>%
-  summarize(ndistinct_word = length(unique(word))) %>%
-  ggplot(aes(x = school_ordered, y = ndistinct_word, fill = school_ordered)) +
-  geom_bar(stat = "identity", show.legend = FALSE) +
-  guides(x = guide_axis(angle = 45)) +
-  scale_fill_manual(values = palette) +
-  labs(title = "Number of Distinct Words by School", x = "School", y = "Word count") +
-  theme_classic()
+  mutate(ndistinct_word_school = length(unique(word))) %>%
+  ungroup() %>%
+  distinct(original_publication_date, school_ordered, mode_date, ndistinct_word_time, ndistinct_word_school)
 
-grid.arrange(trend_plt, bar_plt, nrow = 1)
+ggplot() +
+  geom_line(data = df_distinct_word, aes(x = original_publication_date, y = ndistinct_word_time), stat = "identity") +
+  geom_bar(data = distinct(df_distinct_word, school_ordered, mode_date, ndistinct_word_school), aes(x = mode_date, y = ndistinct_word_school, fill = school_ordered), stat = "identity", width = 5) +
+  scale_fill_manual(values = palette) +
+  labs(title = "Number of Distinct Words", x = "Year", y = "Word count", fill = "School") +
+  theme_classic() +
+  theme(legend.position = "bottom", legend.direction = "horizontal")
 ```
 
 # Sentiment analysis
@@ -201,4 +191,80 @@ for(s in levels(df$school_ordered)) {
            pcol = palette[i], pfcol = alpha(palette[i], 0.3), plwd = 2,
            cglcol = "grey", cglty = 1, axislabcol = "grey", caxislabels = seq(0,20,5))
 }
+```
+
+```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=3}
+# Default colors: "#F8766D", "#00BFC4"
+df_emotions %>%
+  group_by(original_publication_date) %>%
+  summarize(positive = mean(positive),
+            negative = mean(negative)) %>%
+  pivot_longer(!original_publication_date, names_to = "emotion", values_to = "avg_count") %>%
+  ggplot(aes(x = original_publication_date, y = avg_count, color = emotion)) +
+    geom_line(stat = "identity") +
+    labs(title = "Emotional Valence over Time", x = "Year", y = "Average count", color = "Emotion") +
+    # scale_color_manual(values = wes_palette("Rushmore1", 8, type = "continuous")) +
+    theme_classic()
+```
+
+```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=3}
+df_emotions %>%
+  group_by(original_publication_date) %>%
+  summarize(anger = mean(anger),
+            anticipation = mean(anticipation),
+            disgust = mean(disgust),
+            fear = mean(fear),
+            joy = mean(joy),
+            sadness = mean(sadness),
+            surprise = mean(surprise),
+            trust = mean(trust)) %>%
+  pivot_longer(!original_publication_date, names_to = "emotion", values_to = "avg_count") %>%
+  ggplot(aes(x = original_publication_date, y = avg_count, color = emotion)) +
+    geom_line(stat = "identity") +
+    labs(title = "Sentiment over Time", x = "Year", y = "Average count", color = "Emotion") +
+    scale_color_manual(values = wes_palette("Rushmore1", 8, type = "continuous")) +
+    theme_classic()
+```
+
+# Similarity analysis
+
+```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=3}
+corp_sentence <- corpus(df, text_field = "sentence_str")
+
+dfmat_sentence <- corp_sentence %>%
+  quanteda::tokens(remove_punct = TRUE, remove_symbols = TRUE) %>% 
+  dfm() %>%
+  dfm_remove(pattern = stopwords("en"))
+
+# dfmat_author <- dfm_group(dfmat_sentence, groups = author)
+# tstat_dist <- as.dist(textstat_dist(dfmat_author))
+# author_clust <- hclust(tstat_dist)
+# plot(author_clust)
+
+dfmat_school <- dfm_group(dfmat_sentence, groups = school_ordered)
+tstat_dist <- as.dist(textstat_dist(dfmat_school))
+school_clust <- hclust(tstat_dist)
+plot(school_clust)
+```
+
+```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=3}
+emotions_by_school <- df_emotions %>%
+  group_by(school_ordered) %>%
+  summarize(
+    anger = mean(anger),
+    anticipation = mean(anticipation),
+    disgust = mean(disgust),
+    fear = mean(fear),
+    joy = mean(joy),
+    sadness = mean(sadness),
+    surprise = mean(surprise),
+    trust = mean(trust)
+  ) %>%
+  as.data.frame()
+
+rownames(emotions_by_school) <- as.character((emotions_by_school[, 1]))
+kmeans_res <- kmeans(emotions_by_school[,-1], iter.max = 200, 5)
+fviz_cluster(kmeans_res, stand = FALSE, repel = TRUE,
+             data = emotions_by_school[,-1], xlab = "", xaxt = "n",
+             show.clust.cent = FALSE, ggtheme = theme_classic())
 ```
