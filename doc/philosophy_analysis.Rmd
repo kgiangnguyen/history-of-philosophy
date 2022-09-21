@@ -1,8 +1,10 @@
 ---
-title: "Project 1: History of Philosophy"
+title: "PHIL101 through the Lens of Text Mining"
 author: "Kieu-Giang Nguyen"
 output: html_notebook
 ---
+
+Philosophy is an important study that provides us with valuable skills in life. It produces better critical thinkers, more creative thinkers, and better communicators. Despite one's knowledge of philosophy, this analysis aims to give all levels of audience a general picture of philosophy from a new perspective, using text mining and data visualizations from the [History of Philosophy](https://www.kaggle.com/datasets/kouroshalizadeh/history-of-philosophy) dataset. The dataset contains over 300,000 sentences from over 50 texts spanning 13 major schools of philosophy. The represented schools are: Plato, Aristotle, Stoicism, Rationalism, Empiricism, German Idealism, Nietzsche, Communism, Capitalism, Phenomenology, Continental, Analytic, and Feminism. Sentences are units of analysis for this project. We will first take a look at the text used in each school of thought, examine the trend in philosophical speech over time, conduct a sentiment analysis, and finally compare the similarity in phisophical text among different schools. Without further ado, let's dive in!
 
 ```{r, message=FALSE, warning=FALSE}
 library(beeswarm)
@@ -55,7 +57,9 @@ df <- df %>%
 palette <- get_palette(length(unique(df$school)))
 ```
 
-# Overview
+# What is the main philosophy in each school of thought?
+
+For those who have never studied philosophy, or even if you only know Plato and Aristotle, you might start wondering what the other major schools of thought are and what the main idea of phisolophy is behind each school. To answer those questions, I have constructed a series of wordclouds and looked at the most used bigrams by each school from the philosophy text in our data.
 
 ```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=6}
 par(mfrow = c(4, 4))
@@ -87,6 +91,14 @@ for(s in levels(df$school_ordered)) {
 }
 ```
 
+Wordclouds are visual representations of words that give greater prominence to words that appear more frequently. Here, I created a wordcloud of the words most used by the philosophers belonging to each school of thought. Looking at the wordclouds, we can see that there are two types of schools: one frequently used content words relevant to their philosophies and the other frequenly used function words only. For example, **Capitalism**, **Communism**, and **Feminism** are schools that used very descriptive words in their philosophy texts and one could infer the main theme employed by each school: 
+
+* **Capitalism** focuses on "price", "money", and "value" as it describes an economic and political system in which a country's trade and industry are controlled by private owners for profit, rather than by the state
+* **Communism** places emphasis on "labour", "production", and "workers" as it describes a society in which all property is publicly owned and each person works and is paid according to their abilities and needs
+* **Feminism** is centered around women's rights as reflected in the use of words such as "women", "girl", "wife", and possiblly racial discrimination through the use of words such as "black" and "white"
+
+On the other hand, **Plato**, **Aristotle**, **Rationalism**, or **Empiricism** are schools that didn't seem to use many descriptive words that represent their philosphies as we mostly see "one", "will", "can", "ideas" in their texts. It could be explained by the fact that these are the schools of thoughts that are older and tend to be more abstract. Specifically, **Stoicism**'s texts were heavily written in old English, which makes it more difficult to understand and infer what the main theme is behind their philosphy.
+
 ```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=6}
 df %>%
   unnest_tokens(bigram, sentence_str, token = "ngrams", n = 2) %>%
@@ -110,7 +122,11 @@ df %>%
     theme_classic()
 ```
 
-# Philosophy speech
+Instead of looking at individual words, we will now look at bigram which is a pair of consecutive units such as letters, syllables, or words. The bigram plot now gives us a more detailed and comprehensive description of the topics discussed in each school of thought. For example, we can see **German Idealism** is about "self consciousness", "pure reason", "moral law", while **Phenomenology** is about being "objectively present", "surrounding world", and "self evidence". As bigram works really well to describe the text, we can also look at n-gram which is a collection of *n* successive items in a text document to better understand the context of the text and perform further text analyses.
+
+# How has the speech of philosophy evolved over time?
+
+After looking at the text used by philosophers in the major schools of thought, I would like to examine the trend in philosophy speech over time, specifically the sentence length variation and number of distinct words used in the text. I first derived the most original publication date when each school published their text, then ordered the school by their mode publication date. Note that there were no publications happening between the year 170 and the year 1637.
 
 ```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=6}
 df %>%
@@ -122,6 +138,8 @@ df %>%
     labs(title = "Sentence Length by School", x = "Word count", y = "Sentence count") +
     theme_classic()
 ```
+
+Looking at the sentence length distribution by each school, we can see most schools frequently used sentences with ~100-150 words in their texts. However, **Plato**, **Nietszche** and **Analytic** were more likely to use short sentences as their sentence length distributions are either J-shaped or right-skewed, whereas **Capitalism** and **German Idealism** were more likely to use longer sentences with >200 words as their sentence length distributions appear more normal or uniform.
 
 ```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=3}
 df_avg_length <- df %>%
@@ -141,6 +159,8 @@ ggplot() +
   theme_classic() +
   theme(legend.position = "bottom", legend.direction = "horizontal")
 ```
+
+Given the original publication date of the text, I would like to see how the average sentence length has changed over time, corresponding to the school of thought popular at that time. Looking at the overall trend, although it tends to fluctuate towards the later years, its center remain around 100-200 words per sentence. The sentences used by the later schools of thoughts are longer on average, with **Capitalism**, **German Idealism**, and **Continental** having the highest average sentence length, which further confirms our primary observations of sentence length by each school.
 
 ```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=3}
 df_distinct_word <- df %>%
@@ -163,7 +183,11 @@ ggplot() +
   theme(legend.position = "bottom", legend.direction = "horizontal")
 ```
 
-# Sentiment analysis
+Style of speech is not only reflected through the sentence length, but also through the number of distinct words used. In order to analyze the number of distinct words, I firt tokenized the text, then removed the stop words to extract words that are most important in individual text. The overall number of distinct words aggregated by original publication date tends to decrease over time, from ~20000 to ~10000-12000 distinct words. However, when aggregated by school, the later schools of thought actually seemed more likely to use more distinct words in their text, with **German Idealism** and **Continental** having the highest number of distinct words of almost ~30000 words. On the other hand, Stoicism had the lowest number of distinct words, which might link to the fact that it mostly used old English language and therefore its vocabulary might not be as diverse as those of other schools.
+
+# What is the sentiment in philosophical text of each school?
+
+Moving on, I would like to conduct a sentiment analysis in order to understand the context of the data and establish a correlation between the given texts. For each extracted sentences, I applied sentiment analysis using [NRC sentiment lexicon](http://saifmohammad.com/WebPages/NRC-Emotion-Lexicon.htm). Here, we will focus on eight basic emotions (anger, fear, anticipation, trust, surprise, sadness, joy, disgust) and two sentiments (positive and negative).
 
 ```{r, message=FALSE, warning=FALSE}
 emotions <- data.table::fread("../output/emotions.csv")
@@ -193,6 +217,8 @@ for(s in levels(df$school_ordered)) {
 }
 ```
 
+Looking at the radar chart of emotions by school, we can see that trust is a dominant emotion in the text of philosophy of all schools of thought, and comes after trust are anticipation and joy. Disgust and surprise tend to be the least popular emotions reflected in most philosophical text. It is interesting to note that **Stoicism**, **Capitalism**, **Nietzsche** and **Feminism** were the most "joyful" schools, while **Communism**, **Continental** and **Analytic** seemed to be on the more pessimistic end of the spectrum. Specifically, **Continental** even had significantly higher "fear" compared to other schools, which might be explained by its idea of rejecting the view that the natural sciences are the best or most accurate way of understanding all phenomena.
+
 ```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=3}
 # Default colors: "#F8766D", "#00BFC4"
 df_emotions %>%
@@ -202,8 +228,7 @@ df_emotions %>%
   pivot_longer(!original_publication_date, names_to = "emotion", values_to = "avg_count") %>%
   ggplot(aes(x = original_publication_date, y = avg_count, color = emotion)) +
     geom_line(stat = "identity") +
-    labs(title = "Emotional Valence over Time", x = "Year", y = "Average count", color = "Emotion") +
-    # scale_color_manual(values = wes_palette("Rushmore1", 8, type = "continuous")) +
+    labs(title = "Sentiment over Time", x = "Year", y = "Average count", color = "Emotion") +
     theme_classic()
 ```
 
@@ -221,12 +246,16 @@ df_emotions %>%
   pivot_longer(!original_publication_date, names_to = "emotion", values_to = "avg_count") %>%
   ggplot(aes(x = original_publication_date, y = avg_count, color = emotion)) +
     geom_line(stat = "identity") +
-    labs(title = "Sentiment over Time", x = "Year", y = "Average count", color = "Emotion") +
+    labs(title = "Emotion over Time", x = "Year", y = "Average count", color = "Emotion") +
     scale_color_manual(values = wes_palette("Rushmore1", 8, type = "continuous")) +
     theme_classic()
 ```
 
-# Similarity analysis
+Putting the sentiments in the context of time, we observe that the sentiment in philosophical text is more likely to be positive and peaks around the 18th century. Of all the emotions, trust remains to be the highest emotion over time. We can also see the pattern that philosophical texts in the olden days seemed to be more neutral, while philosophical texts in the later years seemed to be more emotionally charged as the emotions all have maximum average count during the 18th century.
+
+# How similar are the schools of thoughts?
+
+What philosophers have in common is that they all identify problems and look for solutions. Ancient philosophers may have had different, sometimes contradicting theories, but they all actively thought about communal or individual issues and looked for answers. As such, I would like to compare and contrast the different schools of thoughts through both the phisophical text itself and the sentiment reflected in the text written by each school.
 
 ```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=3}
 corp_sentence <- corpus(df, text_field = "sentence_str")
@@ -236,16 +265,19 @@ dfmat_sentence <- corp_sentence %>%
   dfm() %>%
   dfm_remove(pattern = stopwords("en"))
 
-# dfmat_author <- dfm_group(dfmat_sentence, groups = author)
-# tstat_dist <- as.dist(textstat_dist(dfmat_author))
-# author_clust <- hclust(tstat_dist)
-# plot(author_clust)
-
 dfmat_school <- dfm_group(dfmat_sentence, groups = school_ordered)
 tstat_dist <- as.dist(textstat_dist(dfmat_school))
 school_clust <- hclust(tstat_dist)
 plot(school_clust)
 ```
+
+After tokenizing the sentences, I then computed the similarity distance between different schools based on the document-feature matrix which describes how frequently terms occur in the corpus. From the dendogram above, we can detect three major groups of schools:
+
+* Group 1: **German Idealism**, **Aristotle**, and **Analytic**
+* Group 2: **Plato**, **Rationalism**, **Empiricism**, **Phenomenology**, and **Continental**
+* Group 3: **Feminism**, **Stoicism**, **Nietzsche**, **Capitalism** and **Communism**
+
+It is interesting how the algorithm returns such groups as I first thought the ancient schools are more similar to one another in terms of styles and ideas in their philosophical text, and similar for the modern schools. Another way to think about it is the origin of the prominent phisophers in each school of thought. In order to better interpret the groups, it is necessary to have some background knowledge in philosophy and understand how philosophers interact with and influence one another over the course of history.
 
 ```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=3}
 emotions_by_school <- df_emotions %>%
@@ -268,3 +300,21 @@ fviz_cluster(kmeans_res, stand = FALSE, repel = TRUE,
              data = emotions_by_school[,-1], xlab = "", xaxt = "n",
              show.clust.cent = FALSE, ggtheme = theme_classic())
 ```
+
+To better understand the similarity among different schools, we can also dissect the philosophical texts based on the sentiments. Here, I computed the average count of each emotion by each school, then applied K-Means clustering to find similar groups of schools. We detect five groups of schools that are similar to one another in terms of sentiment: 
+
+* Group 1: **German Idealism**
+* Group 2: **Plato**, **Aristotle**, **Communism**, **Phenomenology**, and **Analytic**
+* Group 3: **Feminism**
+* Group 4: **Rationalism**, **Empiricism**, and **Capitalism**
+* Group 5: **Stoicism**, **Nietzsche**, and **Continental**
+
+The groups now seem to be more aligned with my initial hypothesis as schools of the same period of time are grouped together such as **Plato** and **Aristotle**, or **Rationalism** and **Empiricism**. The reason **Stoicism**, **Nietzsche** and **Continental** are in the same group might be due to their tendency of anticipation and fear, while **Feminism** might be a standalone group due to its extreme "joy" emotion. Again, one should further study the history of philosophy to better understand these groups and be able to explain why one school is more or less likely to be similar to another school of thought.
+
+# What do we learn so far?
+
+* The modern schools of thoughts tend to use more descriptive words, as opposed to the ancient schools which mostly use function words in their texts.
+* The average sentence length remains around 100 words, while the number of distinct words decreases over time. The modern schools of thoughts are also more likely to use longer sentences and more distinct words in their texts.
+* Trust, anticipation, and joy are the most dominant emotions in philosophical text. Texts written in the 18th century are the most emotionally charged.
+* Different schools of thoughts might be more or less similar to one another depending on their period of time, origin, text, or sentiment.
+* Study philosophy because it's interesting!
