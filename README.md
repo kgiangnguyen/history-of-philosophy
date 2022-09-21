@@ -1,4 +1,5 @@
 Project 1 in Applied Data Science
+
 Term: Fall 2022
 
 * Project title: PHIL101 through the Lens of Text Mining
